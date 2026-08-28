@@ -1,0 +1,300 @@
+        )}
+        {tab === "goals" && (
+          <Goals profile={profile} onSave={saveProfile} burn={burn} workouts={workouts}
+            onAddMove={() => setSheet({ kind: "move" })} onRemoveMove={removeMove}
+            rem={rem} onRem={saveRem}
+            me={me} onSignOut={onSignOut} onRename={onRename}
+            onRemoveAcc={() => onRemove(me.id)}
+            bundle={{ name: me.name, avatar: me.avatar, data: { profile, log, moves, water, weights, reminders: rem } }} />
+        )}
+      </div>
+
+      {tab === "diary" && (
+        <div className="dock"><div className="dock-in">
+          <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setSheet({ kind: "photo" })}>
+            <Camera size={20} /> צלמו את הארוחה
+          </button>
+          <button className="btn btn-sage" onClick={() => setSheet({ kind: "move" })} aria-label="הוספת אימון"><Dumbbell size={20} /></button>
+          <button className="btn btn-ghost" onClick={() => setSheet({ kind: "manual" })} aria-label="הוספה ידנית"><Plus size={21} /></button>
+        </div></div>
+      )}
+
+      {sheet?.kind === "photo" && <PhotoSheet onClose={() => setSheet(null)} onSave={m => { addMeal(m); setSheet(null); }} />}
+      {sheet?.kind === "manual" && <ManualSheet onClose={() => setSheet(null)} onSave={m => { addMeal(m); setSheet(null); }} />}
+      {sheet?.kind === "edit" && <ManualSheet initial={sheet.meal} onClose={() => setSheet(null)}
+        onSave={m => { updateMeal(sheet.meal.id, m); setSheet(null); }} />}
+      {sheet?.kind === "move" && <WorkoutSheet kg={profile.weight} added={profile.burnMode === "added"}
+        onClose={() => setSheet(null)} onSave={w => { addMove(w); setSheet(null); }} />}
+    </div>
+  );
+}
+
+/* ---------------------------- onboarding --------------------------- */
+function Onboarding({ me, onDone }) {
+  const [step, setStep] = useState(0);
+  const [d, setD] = useState({ sex: "female", age: "", height: "", weight: "", activity: "light",
+    goal: "lose", rate: "gentle", burnMode: "included" });
+  const set = (k, v) => setD(s => ({ ...s, [k]: v }));
+
+  const problems = [];
+  if (!(+d.age >= 14 && +d.age <= 100)) problems.push("גיל בין 14 ל‑100");
+  if (!(+d.height >= 120 && +d.height <= 220)) problems.push("גובה בין 120 ל‑220 ס״מ");
+  if (!(+d.weight >= 35 && +d.weight <= 250)) problems.push("משקל בין 35 ל‑250 ק״ג");
+  const statsOk = problems.length === 0;
+  const preview = statsOk ? computeTargets(d) : null;
+
+  return (
+    <div className="wrap" style={{ paddingBottom: 40 }}>
+      <div className="topbar"><span className="mark">eatit</span><span className="stamp">אכול<br />בכיף</span></div>
+
+      {step === 0 && (
+        <>
+          <div className="panel tilt-a" style={{ padding: "18px 16px", marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <h1 className="hand" style={{ fontSize: 32, lineHeight: 1.1, margin: "0 0 8px" }}>
+                  {me?.name ? `${me.name}, בוא נתחיל` : "מצלמים את הצלחת"} <Heart s={17} />
+                </h1>
+                <p style={{ fontSize: 14, lineHeight: 1.6, margin: 0, color: "var(--muted)" }}>
+                  מצלמים את הצלחת ואנחנו סופרים. בלי חיפוש במאגר ובלי טבלאות.
+                </p>
+              </div>
+              <div className="bob"><Bowl pct={0.75} size={88} /></div>
+            </div>
+          </div>
+
+          <div className="panel" style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <span className="numdot">1</span><span className="hand" style={{ fontSize: 24 }}>מה המטרה?</span>
+            </div>
+            <div style={{ display: "grid", gap: 8 }}>
+              {[["lose", "לרדת במשקל", "בקצב שאפשר לחיות איתו"],
+                ["maintain", "לשמור על המשקל", "איזון סביב ההוצאה היומית"],
+                ["gain", "לעלות במסה", "עודף קלורי לבניית שריר"]].map(([v, t, s]) => (
+                <button key={v} className="opt" data-on={d.goal === v ? 1 : 0} onClick={() => set("goal", v)}
+                  style={{ flexDirection: "column", alignItems: "flex-start", gap: 1, minHeight: 60 }}>
+                  <span>{t}</span><span style={{ fontSize: 12.5, color: "var(--muted)" }}>{s}</span>
+                </button>
+              ))}
+            </div>
+            {d.goal !== "maintain" && (
+              <>
+                <div className="label" style={{ marginTop: 14 }}>באיזה קצב?</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {[["gentle", "רגוע · ¼ ק״ג בשבוע"], ["steady", "יציב · ½ ק״ג בשבוע"]].map(([v, t]) => (
+                    <button key={v} className="opt" style={{ flex: 1, justifyContent: "center", fontSize: 14 }}
+                      data-on={d.rate === v ? 1 : 0} onClick={() => set("rate", v)}>{t}</button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+          <button className="btn btn-primary" style={{ width: "100%" }} onClick={() => setStep(1)}>המשך</button>
+        </>
+      )}
+
+      {step === 1 && (
+        <>
+          <div className="panel" style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+              <span className="numdot">2</span><span className="hand" style={{ fontSize: 24 }}>מה שנצטרך</span>
+            </div>
+            <div className="label">מין ביולוגי · לחישוב חילוף החומרים</div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              {[["female", "נקבה"], ["male", "זכר"]].map(([v, t]) => (
+                <button key={v} className="opt" style={{ flex: 1, justifyContent: "center" }}
+                  data-on={d.sex === v ? 1 : 0} onClick={() => set("sex", v)}>{t}</button>
+              ))}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
+              {[["age", "גיל", "28"], ["height", "גובה ס״מ", "172"], ["weight", "משקל ק״ג", "70"]].map(([k, l, ph]) => (
+                <div key={k}>
+                  <label className="label" htmlFor={"ob-" + k}>{l}</label>
+                  <input id={"ob-" + k} className="field num" type="number" inputMode="numeric" placeholder={ph}
+                    value={d[k]} onChange={e => set(k, e.target.value)} />
+                </div>
+              ))}
+            </div>
+            <div className="label">כמה זזים בשבוע?</div>
+            <div style={{ display: "grid", gap: 8 }}>
+              {[["low", "בעיקר יושבים"], ["light", "אימון 1–2 בשבוע"], ["mid", "אימון 3–4 בשבוע"], ["high", "אימון 5+ או עבודה פיזית"]].map(([v, t]) => (
+                <button key={v} className="opt" data-on={d.activity === v ? 1 : 0} onClick={() => set("activity", v)}>{t}</button>
+              ))}
+            </div>
+          </div>
+
+          {preview && (
+            <div className="panel tilt-b gold" style={{ marginBottom: 14 }}>
+              <div className="tag">היעד היומי שלך</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span className="big" style={{ color: "var(--chili)" }}>{preview.kcal}</span>
+                <span style={{ fontSize: 15 }}>קלוריות ליום <Heart s={13} /></span>
+              </div>
+              <div style={{ display: "flex", gap: 14, marginTop: 8, fontSize: 14 }}>
+                <span><b style={{ color: "var(--sage)" }}>{preview.protein}g</b> חלבון</span>
+                <span><b style={{ color: "#B9812A" }}>{preview.carbs}g</b> פחמימה</span>
+                <span><b style={{ color: "var(--chili)" }}>{preview.fat}g</b> שומן</span>
+              </div>
+              {preview.floored && (
+                <p style={{ fontSize: 12.5, lineHeight: 1.55, margin: "10px 0 0", color: "var(--muted)" }}>
+                  העלינו קצת את היעד. גירעון עמוק מדי קשה להחזיק לאורך זמן — ורגוע עובד טוב יותר.
+                </p>
+              )}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn btn-ghost" onClick={() => setStep(0)}><ChevronRight size={18} /> חזרה</button>
+            <button className="btn btn-primary" style={{ flex: 1 }} disabled={!statsOk}
+              onClick={() => onDone({ ...d, age: +d.age, height: +d.height, weight: +d.weight })}>פתחו את היומן</button>
+          </div>
+          {!statsOk && <p style={{ fontSize: 12.5, marginTop: 10, lineHeight: 1.5, color: "var(--muted)" }}>כדי לחשב יעד צריך: {problems.join(" · ")}</p>}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------ advice ----------------------------- */
+const STARTERS = [
+  "כמה חלבון אני צריך ביום ולמה?",
+  "מה כדאי לאכול אחרי אימון כוח?",
+  "יש לי עוד קלוריות פנויות — מה מומלץ?",
+  "כמה קלוריות באמת שורפים בהליכה של שעה?"
+];
+
+function Advice({ me, chat, onChat, ctx }) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const endRef = useRef(null);
+
+  useEffect(() => { endRef.current?.scrollIntoView?.({ behavior: "smooth", block: "end" }); }, [chat.length, busy]);
+
+  async function send(q) {
+    const body = (q ?? text).trim();
+    if (!body || busy) return;
+    setErr(""); setText("");
+    const next = [...chat, { role: "user", text: body }];
+    onChat(next); setBusy(true);
+    try {
+      const r = await askAdvice(next, ctx);
+      onChat([...next, { role: "assistant", text: r.text, sources: r.sources }].slice(-40));
+    } catch (e) {
+      setErr(e.message === "net"
+        ? "הייעוץ לא הגיב. בדקו חיבור לאינטרנט ונסו שוב."
+        : "משהו השתבש בתשובה. נסו לנסח מחדש.");
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <>
+      <div className="panel tilt-a sage" style={{ marginBottom: 14, display: "flex", gap: 11, alignItems: "center" }}>
+        <MessageCircle size={22} style={{ color: "var(--sage)", flex: "0 0 auto" }} />
+        <div>
+          <div className="hand" style={{ fontSize: 22 }}>ייעוץ תזונה, מסביב לשעון</div>
+          <p style={{ fontSize: 12.5, lineHeight: 1.55, margin: "2px 0 0", color: "var(--muted)" }}>
+            רואה את היעדים והיומן שלכם. מבסס מספרים על USDA, משרד הבריאות, ACSM ו‑ISSN — ומצרף קישור למקור.
+          </p>
+        </div>
+      </div>
+
+      {chat.length === 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div className="tag" style={{ marginBottom: 8 }}>אפשר להתחיל מ־</div>
+          {STARTERS.map(q => (
+            <button key={q} className="qchip" onClick={() => send(q)}>{q}</button>
+          ))}
+        </div>
+      )}
+
+      {chat.map((m, i) => (
+        <div key={i} className={"bub " + (m.role === "user" ? "bub-u" : "bub-a")}>
+          {m.text}
+          {m.sources?.length > 0 && (
+            <div style={{ marginTop: 7, borderTop: "1.5px dashed var(--edge)", paddingTop: 6 }}>
+              {m.sources.map(s => (
+                <a key={s.url} className="src" href={s.url} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink size={11} /> {s.title}
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+
+      {busy && (
+        <div className="bub bub-a" style={{ display: "flex", alignItems: "center", gap: 9 }}>
+          <Mascot kind={me.avatar} size={26} />
+          <span className="dots"><span /><span /><span /></span>
+        </div>
+      )}
+
+      {err && (
+        <div className="panel" style={{ borderColor: "var(--chili)", display: "flex", gap: 9, marginBottom: 10 }}>
+          <AlertCircle size={18} style={{ color: "var(--chili)", flex: "0 0 auto", marginTop: 2 }} />
+          <span style={{ fontSize: 13.5, lineHeight: 1.5 }}>{err}</span>
+        </div>
+      )}
+
+      {chat.length > 0 && (
+        <p style={{ fontSize: 11.5, lineHeight: 1.6, color: "var(--muted)", margin: "6px 4px 0" }}>
+          ייעוץ כללי, לא תחליף לדיאטן/ית או רופא/ה. במצב רפואי, הריון או תרופות — כדאי להתייעץ אישית.
+        </p>
+      )}
+      <div ref={endRef} />
+
+      <div className="composer">
+        <div className="composer-in">
+          <input className="field" value={text} onChange={e => setText(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+            placeholder="שאלו כל דבר על תזונה ואימונים" aria-label="שאלה ליועץ" />
+          <button className="btn btn-sage" style={{ minWidth: 54, padding: "0 14px" }}
+            disabled={busy || !text.trim()} onClick={() => send()} aria-label="שליחה">
+            {busy ? <Loader2 size={19} className="spin" /> : <Send size={19} />}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* --------------------------- next meal ----------------------------- */
+function NextMeal({ ctx, prefs, left, onAdd }) {
+  const [mode, setMode] = useState("home");
+  const [state, setState] = useState("idle");
+  const [res, setRes] = useState(null);
+  const [added, setAdded] = useState({});
+
+  async function run(m) {
+    const use = m || mode;
+    setMode(use); setState("busy");
+    try { setRes(await suggestMeals(ctx, use, prefs)); setState("done"); }
+    catch { setState("error"); }
+  }
+
+  if (left < 150) return (
+    <div className="panel" style={{ marginBottom: 14, padding: "12px 14px", fontSize: 13.5, lineHeight: 1.6, color: "var(--muted)" }}>
+      {left >= 0
+        ? "נשאר תקציב קטן להיום. אם אתם רעבים באמת — תאכלו. יום אחד לא משנה מגמה."
+        : "היום כבר מלא. אם עולה רעב אמיתי, משהו קל עם חלבון עדיף על להתאפק."}
+    </div>
+  );
+
+  return (
+    <div className="panel tilt-a" style={{ marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
+        <span className="hand" style={{ fontSize: 23 }}>הארוחה הבאה</span>
+        <span className="tag">{r0(left)} קק״ל פנויות</span>
+      </div>
+
+      <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+        {MODES.map(([v, t]) => (
+          <button key={v} className="modechip" data-on={mode === v ? 1 : 0} onClick={() => run(v)}>{t}</button>
+        ))}
+      </div>
+
+      {state === "idle" && (
+        <button className="btn btn-sage" style={{ width: "100%" }} onClick={() => run()}>
+          <Sparkle size={17} /> הציעו לי משהו
+        </button>
