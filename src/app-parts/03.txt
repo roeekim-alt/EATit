@@ -1,0 +1,300 @@
+  const signOut = () => { setActive(null); store.set("eatit:active", null); };
+  const removeAccount = id => {
+    const list = accounts.filter(a => a.id !== id);
+    setAccounts(list); store.set("eatit:accounts", list);
+    DATA_KEYS.forEach(k => store.set(kx(id, k), null));
+    if (active === id) signOut();
+  };
+  const renameAccount = (id, name, avatar) => {
+    const list = accounts.map(a => a.id === id ? { ...a, name, avatar } : a);
+    setAccounts(list); store.set("eatit:accounts", list);
+  };
+
+  if (!ready) return (
+    <div className="eatit" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
+      <style>{CSS}</style>
+      <div style={{ textAlign: "center" }} className="bob">
+        <Bowl pct={0.5} size={110} /><div className="mark" style={{ marginTop: 6 }}>eatit</div>
+      </div>
+    </div>
+  );
+
+  if (!active) return (
+    <div className="eatit"><style>{CSS}</style>
+      <SignIn accounts={accounts} onCreate={createAccount} onSignIn={signIn} onRemove={removeAccount} />
+    </div>
+  );
+
+  const me = accounts.find(a => a.id === active);
+  return <Session key={active} me={me} onSignOut={signOut} onRemove={removeAccount} onRename={renameAccount} />;
+}
+
+/* ---------------------------- sign in ------------------------------ */
+function SignIn({ accounts, onCreate, onSignIn, onRemove }) {
+  const [mode, setMode] = useState(accounts.length ? "list" : "new");
+  const [name, setName] = useState("");
+  const [avatar, setAvatar] = useState("bowl");
+  const [code, setCode] = useState("");
+  const [err, setErr] = useState("");
+
+  function restore() {
+    setErr("");
+    try {
+      const json = decodeURIComponent(escape(atob(code.trim())));
+      const data = JSON.parse(json);
+      if (!data || !data.name) throw new Error("bad");
+      onCreate(data.name, data.avatar || "bowl", data.data || {});
+    } catch { setErr("הקוד לא תקין. ודאו שהעתקתם אותו במלואו."); }
+  }
+
+  return (
+    <div className="wrap" style={{ paddingBottom: 40 }}>
+      <div className="topbar"><span className="mark">eatit</span><span className="stamp">אכול<br />בכיף</span></div>
+
+      <div className="panel tilt-a" style={{ marginBottom: 16, padding: "18px 16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ flex: 1 }}>
+            <h1 className="hand" style={{ fontSize: 32, lineHeight: 1.1, margin: "0 0 6px" }}>
+              ברוכים הבאים <Heart s={17} />
+            </h1>
+            <p style={{ fontSize: 13.5, lineHeight: 1.6, margin: 0, color: "var(--muted)" }}>
+              פרופיל אישי שומר את היעדים, היומן וההיסטוריה שלכם — וממשיך מאיפה שהפסקתם.
+            </p>
+          </div>
+          <div className="bob"><Bowl pct={0.7} size={86} /></div>
+        </div>
+      </div>
+
+      {mode === "list" && (
+        <>
+          <div className="tag" style={{ marginBottom: 8 }}>מי נכנס/ת?</div>
+          {accounts.map(a => (
+            <div className="row" key={a.id}>
+              <button onClick={() => onSignIn(a.id)} style={{ display: "flex", alignItems: "center", gap: 11, flex: 1, textAlign: "right" }}>
+                <Mascot kind={a.avatar} size={44} />
+                <span>
+                  <span style={{ fontSize: 16, display: "block" }}>{a.name}</span>
+                  <span className="tag">כניסה לפרופיל</span>
+                </span>
+              </button>
+              <button className="iconbtn" style={{ width: 38, height: 38 }}
+                onClick={() => window.confirm(`למחוק את הפרופיל של ${a.name}? כל הנתונים יימחקו.`) && onRemove(a.id)}
+                aria-label={`מחיקת ${a.name}`}><Trash2 size={15} /></button>
+            </div>
+          ))}
+          <button className="btn btn-ghost" style={{ width: "100%", marginTop: 6 }} onClick={() => setMode("new")}>
+            <UserPlus size={18} /> פרופיל חדש
+          </button>
+          <button className="btn btn-ghost btn-sm" style={{ width: "100%", marginTop: 8 }} onClick={() => setMode("restore")}>
+            <Link2 size={16} /> שחזור מקוד גיבוי
+          </button>
+        </>
+      )}
+
+      {mode === "new" && (
+        <>
+          <div className="panel" style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <span className="numdot">1</span><span className="hand" style={{ fontSize: 23 }}>נעים להכיר</span>
+            </div>
+            <label className="label" htmlFor="acc-name">איך לקרוא לכם?</label>
+            <input id="acc-name" className="field" value={name} onChange={e => setName(e.target.value)}
+              placeholder="השם שלכם" style={{ marginBottom: 14 }} />
+            <div className="label">בחרו דמות</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
+              {AVATARS.map(a => (
+                <button key={a.id} className="avatarbtn" data-on={avatar === a.id ? 1 : 0} onClick={() => setAvatar(a.id)}>
+                  <Mascot kind={a.id} size={42} /><span>{a.t}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <button className="btn btn-primary" style={{ width: "100%" }} disabled={!name.trim()}
+            onClick={() => onCreate(name, avatar)}>צרו פרופיל</button>
+          {!name.trim() && <p style={{ fontSize: 12.5, marginTop: 9, color: "var(--muted)" }}>צריך שם כדי להמשיך.</p>}
+          {accounts.length > 0 && (
+            <button className="btn btn-ghost btn-sm" style={{ width: "100%", marginTop: 10 }} onClick={() => setMode("list")}>
+              <ChevronRight size={16} /> חזרה לרשימה
+            </button>
+          )}
+        </>
+      )}
+
+      {mode === "restore" && (
+        <>
+          <div className="panel" style={{ marginBottom: 14 }}>
+            <div className="hand" style={{ fontSize: 23, marginBottom: 6 }}>שחזור פרופיל</div>
+            <p style={{ fontSize: 13, lineHeight: 1.6, color: "var(--muted)", marginTop: 0 }}>
+              הדביקו כאן את קוד הגיבוי שייצאתם מהמכשיר הקודם.
+            </p>
+            <textarea className="field" rows={4} value={code} onChange={e => setCode(e.target.value)}
+              placeholder="הדביקו את הקוד" style={{ resize: "vertical" }} />
+            {err && <p style={{ fontSize: 12.5, color: "var(--chili)", marginBottom: 0 }}>{err}</p>}
+          </div>
+          <button className="btn btn-primary" style={{ width: "100%" }} disabled={!code.trim()} onClick={restore}>
+            שחזרו את הפרופיל
+          </button>
+          <button className="btn btn-ghost btn-sm" style={{ width: "100%", marginTop: 10 }}
+            onClick={() => setMode(accounts.length ? "list" : "new")}><ChevronRight size={16} /> חזרה</button>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ---------------------------- session ------------------------------ */
+function Session({ me, onSignOut, onRemove, onRename }) {
+  const [ready, setReady] = useState(false);
+  const [profile, setProfile] = useState(null);
+  const [log, setLog] = useState({});
+  const [moves, setMoves] = useState({});
+  const [water, setWater] = useState({});
+  const [weights, setWeights] = useState({});
+  const [chat, setChat] = useState([]);
+  const [rem, setRem] = useState(DEFAULT_REM);
+  const [date, setDate] = useState(() => new Date());
+  const [tab, setTab] = useState("diary");
+  const [sheet, setSheet] = useState(null);
+  const fired = useRef({});
+
+  useEffect(() => {
+    let alive = true;
+    const bail = setTimeout(() => { if (alive) setReady(true); }, 3000);
+    (async () => {
+      try {
+        const vals = await Promise.all(DATA_KEYS.map(k => store.get(kx(me.id, k))));
+        if (!alive) return;
+        const [p, l, mv, wt, wg, rm, ch] = vals;
+        if (p && p.weight) setProfile(p);
+        if (l && typeof l === "object") setLog(l);
+        if (mv && typeof mv === "object") setMoves(mv);
+        if (wt && typeof wt === "object") setWater(wt);
+        if (wg && typeof wg === "object") setWeights(wg);
+        if (rm && typeof rm === "object") setRem({ ...DEFAULT_REM, ...rm });
+        if (Array.isArray(ch)) setChat(ch);
+      } catch { /* fresh */ }
+      if (alive) { clearTimeout(bail); setReady(true); }
+    })();
+    return () => { alive = false; clearTimeout(bail); };
+  }, [me.id]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    const tick = () => {
+      if (Notification.permission !== "granted") return;
+      const now = new Date();
+      const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      slotsFor(rem).forEach(s => {
+        const id = keyOf(now) + s.key;
+        if (s.time === hhmm && !fired.current[id]) {
+          fired.current[id] = 1;
+          try { new Notification(s.title, { body: s.body }); } catch { /* blocked */ }
+        }
+      });
+    };
+    const iv = setInterval(tick, 25000);
+    return () => clearInterval(iv);
+  }, [rem]);
+
+  const put = (setter, name) => v => { setter(v); store.set(kx(me.id, name), v); };
+  const saveProfile = put(setProfile, "profile");
+  const saveLog = put(setLog, "log");
+  const saveMoves = put(setMoves, "moves");
+  const saveWater = put(setWater, "water");
+  const saveWeights = put(setWeights, "weights");
+  const saveRem = put(setRem, "reminders");
+  const saveChat = put(setChat, "chat");
+
+  const dk = keyOf(date);
+  const meals = useMemo(() => log[dk] || [], [log, dk]);
+  const workouts = useMemo(() => moves[dk] || [], [moves, dk]);
+  const burn = useMemo(() => workouts.reduce((a, w) => a + w.kcal, 0), [workouts]);
+  const targets = useMemo(() => profile ? computeTargets(profile, burn) : null, [profile, burn]);
+  const totals = useMemo(() => meals.reduce((a, m) => ({
+    kcal: a.kcal + m.kcal, protein: a.protein + m.protein, carbs: a.carbs + m.carbs, fat: a.fat + m.fat
+  }), { kcal: 0, protein: 0, carbs: 0, fat: 0 }), [meals]);
+
+  /* what the user eats most, for one-tap repeats */
+  const recent = useMemo(() => {
+    const map = {};
+    Object.keys(log).sort().slice(-30).forEach(k => (log[k] || []).forEach(m => {
+      const key = (m.dish || "").trim();
+      if (!key) return;
+      if (!map[key]) map[key] = { dish: key, kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat, photo: m.photo, count: 0 };
+      map[key].count++;
+      if (m.photo) map[key].photo = m.photo;
+    }));
+    return Object.values(map).sort((a, b) => b.count - a.count).slice(0, 6);
+  }, [log]);
+
+  /* one context string, shared by the suggester and the advice chat */
+  const ctx = useMemo(() => profile && targets ? [
+    `שם: ${me.name}`,
+    `${profile.sex === "male" ? "זכר" : "נקבה"}, גיל ${profile.age}, ${profile.height} ס״מ, ${profile.weight} ק״ג`,
+    `מטרה: ${{ lose: "ירידה במשקל", maintain: "שמירה", gain: "עלייה במסה" }[profile.goal]}, קצב ${profile.rate === "steady" ? "יציב" : "רגוע"}`,
+    profile.prefs ? `העדפות והגבלות אכילה: ${profile.prefs}` : "",
+    `יעד יומי: ${targets.kcal} קק״ל · חלבון ${targets.protein}g · פחמימות ${targets.carbs}g · שומן ${targets.fat}g`,
+    `נאכלו היום: ${r0(totals.kcal)} קק״ל (חלבון ${r0(totals.protein)}g, פחמימות ${r0(totals.carbs)}g, שומן ${r0(totals.fat)}g)`,
+    `נותרו: ${r0(targets.kcal - totals.kcal)} קק״ל · חלבון ${Math.max(0, targets.protein - r0(totals.protein))}g · פחמימות ${Math.max(0, targets.carbs - r0(totals.carbs))}g · שומן ${Math.max(0, targets.fat - r0(totals.fat))}g`,
+    `השעה כעת: ${new Date().getHours()}:00`,
+    meals.length ? `ארוחות היום: ${meals.map(m => `${m.dish} (${r0(m.kcal)})`).join(", ")}` : "עוד לא נרשמו ארוחות היום",
+    workouts.length ? `אימונים היום: ${workouts.map(w => `${w.name} ${w.minutes} דק׳ (${w.kcal} קק״ל)`).join(", ")}` : "לא נרשם אימון היום",
+    recent.length ? `מנות שהוא אוכל הרבה: ${recent.map(m => m.dish).join(", ")}` : ""
+  ].filter(Boolean).join("\n") : "", [me, profile, targets, totals, meals, workouts, recent]);
+
+  const prune = obj => {
+    const cutoff = keyOf(addDays(new Date(), -60));
+    Object.keys(obj).forEach(k => { if (k < cutoff) delete obj[k]; });
+    return obj;
+  };
+  const addMeal = m => saveLog(prune({ ...log, [dk]: [...(log[dk] || []), m] }));
+  const updateMeal = (id, patch) => saveLog({ ...log, [dk]: (log[dk] || []).map(m => m.id === id ? { ...m, ...patch } : m) });
+  const removeMeal = id => saveLog({ ...log, [dk]: (log[dk] || []).filter(m => m.id !== id) });
+  const addMove = w => saveMoves(prune({ ...moves, [dk]: [...(moves[dk] || []), w] }));
+  const removeMove = id => saveMoves({ ...moves, [dk]: (moves[dk] || []).filter(w => w.id !== id) });
+
+  if (!ready) return (
+    <div className="eatit" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
+      <style>{CSS}</style><div className="bob"><Bowl pct={0.5} size={110} /></div>
+    </div>
+  );
+
+  if (!profile) return (
+    <div className="eatit"><style>{CSS}</style><Onboarding me={me} onDone={saveProfile} /></div>
+  );
+
+  return (
+    <div className="eatit">
+      <style>{CSS}</style>
+      <div className="wrap" style={tab === "chat" ? { paddingBottom: 104 } : undefined}>
+        <div className="topbar">
+          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+            <Mascot kind={me.avatar} size={38} />
+            <div>
+              <div className="mark" style={{ fontSize: 23 }}>eatit</div>
+              <div className="tag" style={{ fontSize: 15 }}>שלום, {me.name}</div>
+            </div>
+          </div>
+          <button className="iconbtn" onClick={() => setTab("goals")} aria-label="יעדים והגדרות"><Settings2 size={19} /></button>
+        </div>
+
+        <div className="tabs">
+          {[["diary", "היום"], ["chat", "ייעוץ"], ["trend", "מגמה"], ["goals", "יעדים"]].map(([id, t]) => (
+            <button key={id} className="tab" data-on={tab === id ? 1 : 0} onClick={() => setTab(id)}>{t}</button>
+          ))}
+        </div>
+
+        {tab === "diary" && (
+          <Diary date={date} setDate={setDate} meals={meals} totals={totals} targets={targets}
+            workouts={workouts} burn={burn} onRemoveMove={removeMove}
+            cups={water[dk] || 0} cupGoal={waterGoal(profile.weight)} onCups={n => saveWater({ ...water, [dk]: n })}
+            onEdit={m => setSheet({ kind: "edit", meal: m })} onDelete={removeMeal}
+            onAddMove={() => setSheet({ kind: "move" })}
+            onAdd={addMeal} recent={recent} ctx={ctx} prefs={profile.prefs} />
+        )}
+        {tab === "chat" && (
+          <Advice me={me} chat={chat} onChat={saveChat} ctx={ctx} />
+        )}
+        {tab === "trend" && (
+          <Trend log={log} moves={moves} profile={profile} weights={weights}
+            onWeight={kg => saveWeights({ ...weights, [keyOf(new Date())]: kg })} />
