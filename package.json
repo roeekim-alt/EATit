@@ -4,12 +4,14 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "assemble": "node scripts/assemble.mjs",
+    "predev": "npm run assemble",
     "dev": "vite",
+    "prebuild": "npm run assemble",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "latest",
     "lucide-react": "latest",
     "vite": "latest",
     "react": "latest",
