@@ -1,0 +1,300 @@
+      )}
+
+      {state === "busy" && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "16px 0" }}>
+          <Bowl pct={0.45} size={54} />
+          <span className="dots"><span /><span /><span /></span>
+        </div>
+      )}
+
+      {state === "error" && (
+        <div style={{ display: "flex", gap: 9, alignItems: "flex-start" }}>
+          <AlertCircle size={18} style={{ color: "var(--chili)", flex: "0 0 auto", marginTop: 2 }} />
+          <div style={{ fontSize: 13.5, lineHeight: 1.55, flex: 1 }}>
+            ההצעות לא נטענו. בדקו חיבור ונסו שוב.
+            <button className="btn btn-ghost btn-sm" style={{ width: "100%", marginTop: 8 }} onClick={() => run()}>
+              <RotateCcw size={15} /> נסו שוב
+            </button>
+          </div>
+        </div>
+      )}
+
+      {state === "done" && res && (
+        <>
+          {res.options.map((o, i) => (
+            <div className="sugg" key={i} data-on={added[i] ? 1 : 0}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                <span style={{ fontSize: 15.5 }}>{o.name}</span>
+                <span className="hand" style={{ fontSize: 21, color: "var(--chili)" }}>{r0(o.kcal)}</span>
+              </div>
+              {o.portion && <div className="tag" style={{ fontSize: 15 }}>{o.portion}</div>}
+              <div className="num" style={{ fontSize: 12.5, display: "flex", gap: 9, margin: "4px 0 5px" }}>
+                <span style={{ color: "var(--sage)" }}>ח {r0(o.protein)}</span>
+                <span style={{ color: "#B9812A" }}>פ {r0(o.carbs)}</span>
+                <span style={{ color: "var(--muted)" }}>ש {r0(o.fat)}</span>
+              </div>
+              <p style={{ fontSize: 12.5, lineHeight: 1.55, margin: 0, color: "var(--muted)" }}>
+                {o.why}{o.howto ? ` · ${o.howto}` : ""}
+              </p>
+              <button className="btn btn-ghost btn-sm" style={{ width: "100%", marginTop: 9 }}
+                disabled={!!added[i]}
+                onClick={() => { setAdded(a => ({ ...a, [i]: 1 })); onAdd({
+                  id: uid(), dish: o.name, slot: mealNameByHour(new Date().getHours()), photo: null,
+                  kcal: +o.kcal || 0, protein: +o.protein || 0, carbs: +o.carbs || 0, fat: +o.fat || 0
+                }); }}>
+                {added[i] ? <><Check size={15} /> נוסף ליומן</> : <><Plus size={15} /> אכלתי את זה</>}
+              </button>
+            </div>
+          ))}
+          {res.note && <p style={{ fontSize: 12, lineHeight: 1.6, margin: "2px 0 8px", color: "var(--muted)" }}>{res.note}</p>}
+          <button className="btn btn-ghost btn-sm" style={{ width: "100%" }} onClick={() => run()}>
+            <RotateCcw size={15} /> הצעות אחרות
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* -------------------------- quick repeat --------------------------- */
+function QuickRepeat({ items, onAdd }) {
+  if (!items.length) return null;
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div className="tag" style={{ marginBottom: 7 }}>חזרה מהירה · מה שאתם אוכלים הכי הרבה</div>
+      <div className="qrep">
+        {items.map(m => (
+          <button className="qrepchip" key={m.dish} onClick={() => onAdd({
+            id: uid(), dish: m.dish, slot: mealNameByHour(new Date().getHours()), photo: m.photo || null,
+            kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat
+          })}>
+            {m.photo
+              ? <img src={m.photo} alt="" />
+              : <span className="numdot" style={{ width: 26, height: 26, fontSize: 14 }}>+</span>}
+            <span>{m.dish}</span>
+            <span className="num" style={{ fontSize: 12, color: "var(--muted)" }}>{r0(m.kcal)}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------ diary ------------------------------ */
+function Diary({ date, setDate, meals, totals, targets, workouts, burn, onRemoveMove,
+                 cups, cupGoal, onCups, onEdit, onDelete, onAddMove, onAdd, recent, ctx, prefs }) {
+  const strip = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(new Date(), i - 6)), []);
+  const pct = totals.kcal / targets.kcal;
+  const left = targets.kcal - totals.kcal;
+  const isToday = keyOf(date) === keyOf(new Date());
+  const headline =
+    totals.kcal === 0 ? "יום חדש, צלחת נקייה" :
+    pct < 0.55 ? "מתקדמים יפה" :
+    pct < 0.95 ? "כמעט שם, נשאר מקום לעוד" :
+    pct <= 1.08 ? "בול על היעד. כל הכבוד!" : "יום מלא — מחר ממשיכים";
+
+  return (
+    <>
+      <div className="datestrip">
+        {strip.map(d => (
+          <button key={keyOf(d)} className="daybtn" data-on={keyOf(d) === keyOf(date) ? 1 : 0} onClick={() => setDate(d)}>
+            <small>{DAYS_HE[d.getDay()]}</small><b>{d.getDate()}</b>
+          </button>
+        ))}
+      </div>
+
+      <div className="panel tilt-a" style={{ marginBottom: 14, padding: "16px 14px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ flex: 1 }}>
+            <div className="tag">{left >= 0 ? "נשארו להיום" : "מעל היעד ב"}</div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+              <span className="big" style={{ color: left >= 0 ? "var(--chili)" : "var(--gold)" }}>{Math.abs(r0(left))}</span>
+              <span style={{ fontSize: 13.5, color: "var(--muted)" }}>מתוך {targets.kcal}</span>
+            </div>
+            {targets.extra > 0 && (
+              <div className="chip" style={{ marginTop: 4, display: "inline-block", color: "var(--sage)" }}>
+                כולל {targets.extra} מהאימון
+              </div>
+            )}
+            <div className="hand" style={{ fontSize: 21, marginTop: 4 }}>{headline}</div>
+          </div>
+          <div className="pop" key={meals.length} style={{ flex: "0 0 auto" }}><Bowl pct={pct} size={124} /></div>
+        </div>
+
+        <div style={{ display: "flex", gap: 11, marginTop: 12 }}>
+          {[["protein", "חלבון", "var(--sage)"], ["carbs", "פחמימות", "var(--gold)"], ["fat", "שומן", "var(--chili)"]].map(([k, t, c]) => (
+            <div key={k} style={{ flex: 1 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
+                <span style={{ color: "var(--muted)" }}>{t}</span>
+                <span className="num">{r0(totals[k])}<span style={{ color: "var(--muted)" }}>/{targets[k]}</span></span>
+              </div>
+              <div className="mbar"><div className="mfill" style={{ width: `${Math.min(100, (totals[k] / targets[k]) * 100)}%`, background: c }} /></div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="panel tilt-b" style={{ marginBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+          <span className="hand" style={{ fontSize: 22 }}>מים היום</span>
+          <span className="tag">{cups} מתוך {cupGoal} כוסות</span>
+        </div>
+        <div className="cups">
+          {Array.from({ length: cupGoal }, (_, i) => (
+            <button key={i} className="cup" onClick={() => onCups(i + 1 === cups ? i : i + 1)}
+              aria-label={`סימון כוס ${i + 1}`} aria-pressed={i < cups}><Cup filled={i < cups} /></button>
+          ))}
+        </div>
+      </div>
+
+      {isToday && <NextMeal ctx={ctx} prefs={prefs} left={left} onAdd={onAdd} />}
+      {isToday && <QuickRepeat items={recent} onAdd={onAdd} />}
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "0 4px 9px" }}>
+        <span className="hand" style={{ fontSize: 23 }}>תנועה</span>
+        <button className="btn btn-ghost btn-sm" onClick={onAddMove}><Plus size={16} /> אימון</button>
+      </div>
+      {workouts.length === 0
+        ? <div className="panel" style={{ padding: "12px 14px", marginBottom: 14, fontSize: 13.5, color: "var(--muted)" }}>
+            עוד לא נרשם אימון היום. גם הליכה של 20 דקות נחשבת.
+          </div>
+        : <div style={{ marginBottom: 14 }}>
+            {workouts.map(w => {
+              const A = ACTS.find(a => a.id === w.act) || ACTS[0];
+              return (
+                <div className="row" key={w.id}>
+                  <span className="iconbtn" style={{ width: 40, height: 40, background: "#E9F0DC", borderColor: "var(--sage)" }}>
+                    <A.I size={18} style={{ color: "var(--sage)" }} />
+                  </span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 15 }}>{A.t}</div>
+                    <div className="num" style={{ fontSize: 12.5, color: "var(--muted)" }}>{w.minutes} דקות · {w.intensityLabel}</div>
+                  </div>
+                  <span className="hand" style={{ fontSize: 22, color: "var(--sage)" }}>{w.kcal}</span>
+                  <span className="tag" style={{ fontSize: 14 }}>קק״ל</span>
+                  <button className="iconbtn" style={{ width: 38, height: 38 }} onClick={() => onRemoveMove(w.id)} aria-label="מחיקת אימון"><Trash2 size={15} /></button>
+                </div>
+              );
+            })}
+            <div className="tag" style={{ textAlign: "left", marginTop: -2 }}>סך שריפה משוערת: {burn} קק״ל</div>
+          </div>}
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "0 4px 10px" }}>
+        <span className="hand" style={{ fontSize: 23 }}>
+          {isToday ? "מה אכלנו היום" : `${date.getDate()} ב${MONTHS_HE[date.getMonth()]}`}
+        </span>
+        <span className="tag">{meals.length} ארוחות</span>
+      </div>
+
+      {meals.length === 0 && (
+        <div className="panel tilt-b" style={{ textAlign: "center", padding: "22px 18px" }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}><Panda size={64} /></div>
+          <div className="hand" style={{ fontSize: 22, marginBottom: 4 }}>הצלחת עוד ריקה</div>
+          <p style={{ fontSize: 13.5, margin: 0, lineHeight: 1.55, color: "var(--muted)" }}>
+            צלמו את הארוחה הבאה — היא תופיע כאן עם כל הערכים.
+          </p>
+        </div>
+      )}
+
+      {meals.map((m, i) => (
+        <div className="row" key={m.id}>
+          <span className="numdot">{i + 1}</span>
+          {m.photo ? <img className="snap" src={m.photo} alt={m.dish} /> : <div className="snap snap-ph"><ImageIcon size={20} /></div>}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <span style={{ fontSize: 15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.dish}</span>
+              <span className="chip">{m.slot}</span>
+            </div>
+            <div className="num" style={{ fontSize: 12.5, marginTop: 3, display: "flex", gap: 9, flexWrap: "wrap" }}>
+              <span style={{ color: "var(--chili)" }}>{r0(m.kcal)} קק״ל</span>
+              <span style={{ color: "var(--sage)" }}>ח {r0(m.protein)}</span>
+              <span style={{ color: "#B9812A" }}>פ {r0(m.carbs)}</span>
+              <span style={{ color: "var(--muted)" }}>ש {r0(m.fat)}</span>
+            </div>
+          </div>
+          <button className="iconbtn" style={{ width: 38, height: 38 }} onClick={() => onEdit(m)} aria-label={`עריכת ${m.dish}`}><Pencil size={15} /></button>
+          <button className="iconbtn" style={{ width: 38, height: 38 }} onClick={() => onDelete(m.id)} aria-label={`מחיקת ${m.dish}`}><Trash2 size={15} /></button>
+        </div>
+      ))}
+    </>
+  );
+}
+
+/* --------------------------- workout sheet ------------------------- */
+function WorkoutSheet({ onClose, onSave, kg, added }) {
+  const [act, setAct] = useState("walk");
+  const [minutes, setMinutes] = useState(30);
+  const [intensity, setIntensity] = useState("mid");
+  const kcal = burnOf(act, minutes, intensity, kg);
+  const A = ACTS.find(a => a.id === act);
+
+  return (
+    <div className="sheet-bg" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="sheet"><div className="grab" />
+        <div style={{ padding: "8px 14px 26px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <span className="hand" style={{ fontSize: 26 }}>מה עשיתם היום?</span>
+            <button className="iconbtn" onClick={onClose} aria-label="סגירה"><X size={19} /></button>
+          </div>
+
+          <div className="panel" style={{ marginBottom: 12 }}>
+            <div className="actgrid">
+              {ACTS.map(a => (
+                <button key={a.id} className="actbtn" data-on={act === a.id ? 1 : 0} onClick={() => setAct(a.id)}>
+                  <a.I size={21} style={{ color: act === a.id ? "var(--sage)" : "var(--muted)" }} /><span>{a.t}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="panel" style={{ marginBottom: 12 }}>
+            <label className="label" htmlFor="mins">כמה זמן? <b style={{ color: "var(--ink)" }}>{minutes} דקות</b></label>
+            <input id="mins" className="slider" type="range" min="5" max="180" step="5"
+              value={minutes} onChange={e => setMinutes(+e.target.value)} />
+            <div className="tag" style={{ display: "flex", justifyContent: "space-between", fontSize: 15, marginBottom: 12 }}>
+              <span>5 דק׳</span><span>שעה</span><span>3 שעות</span>
+            </div>
+            <div className="label">באיזו עוצמה?</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {INTENSITY.map(([v, t]) => (
+                <button key={v} className="opt" style={{ flex: 1, justifyContent: "center" }}
+                  data-on={intensity === v ? 1 : 0} onClick={() => setIntensity(v)}>{t}</button>
+              ))}
+            </div>
+          </div>
+
+          <div className="panel tilt-b sage" style={{ marginBottom: 14 }}>
+            <div className="tag">שריפה משוערת</div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+              <span className="big" style={{ color: "var(--sage)" }}>{kcal}</span>
+              <span style={{ fontSize: 14 }}>קלוריות</span>
+            </div>
+            <p style={{ fontSize: 12.5, lineHeight: 1.6, margin: "8px 0 0", color: "var(--muted)" }}>
+              {added ? "היעד היומי שלכם יגדל בהתאם, כי הבסיס מחושב ליום בלי אימון."
+                     : "רישום בלבד — היעד היומי כבר מניח את רמת הפעילות שהגדרתם. אפשר לשנות במסך היעדים."}
+            </p>
+          </div>
+
+          <button className="btn btn-sage" style={{ width: "100%" }} onClick={() => onSave({
+            id: uid(), act, minutes, intensity,
+            intensityLabel: (INTENSITY.find(i => i[0] === intensity) || INTENSITY[1])[1], kcal, name: A.t
+          })}><Check size={19} /> רשמו את האימון</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* --------------------------- photo sheet --------------------------- */
+function PhotoSheet({ onClose, onSave }) {
+  const [photo, setPhoto] = useState(null);
+  const [thumb, setThumb] = useState(null);
+  const [hint, setHint] = useState("");
+  const [state, setState] = useState("pick");
+  const [result, setResult] = useState(null);
+  const [mult, setMult] = useState(1);
+  const [err, setErr] = useState("");
+
+  async function pick(file) {
+    if (!file) return;
+    try {
