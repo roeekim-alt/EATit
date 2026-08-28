@@ -1,0 +1,88 @@
+
+      {rem.meals && (
+        <div style={{ display: "flex", gap: 8, padding: "10px 0", borderBottom: "1.5px dashed var(--edge)" }}>
+          {["בוקר", "צהריים", "ערב"].map((l, i) => (
+            <div key={l} style={{ flex: 1 }}>
+              <label className="label" htmlFor={"mt" + i}>{l}</label>
+              <input id={"mt" + i} className="timein" type="time" style={{ width: "100%" }}
+                value={rem.mealTimes[i]} onChange={e => setMealTime(i, e.target.value)} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="setrow">
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 15 }}>תזכורות מים</div>
+          <div style={{ fontSize: 12.5, color: "var(--muted)" }}>יעד {cupGoal} כוסות ביום</div>
+        </div>
+        <button className="switch" data-on={rem.water ? 1 : 0} onClick={() => set("water", !rem.water)}
+          role="switch" aria-checked={rem.water} aria-label="תזכורות מים"><i /></button>
+      </div>
+
+      {rem.water && (
+        <div style={{ display: "flex", gap: 8, padding: "10px 0", borderBottom: "1.5px dashed var(--edge)" }}>
+          <div style={{ flex: 1 }}>
+            <label className="label" htmlFor="wf">מ־</label>
+            <input id="wf" className="timein" type="time" style={{ width: "100%" }}
+              value={rem.waterFrom} onChange={e => set("waterFrom", e.target.value)} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label className="label" htmlFor="wt">עד</label>
+            <input id="wt" className="timein" type="time" style={{ width: "100%" }}
+              value={rem.waterTo} onChange={e => set("waterTo", e.target.value)} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label className="label" htmlFor="we">כל</label>
+            <select id="we" className="timein" style={{ width: "100%" }}
+              value={rem.waterEvery} onChange={e => set("waterEvery", +e.target.value)}>
+              {[1, 2, 3, 4].map(h => <option key={h} value={h}>{h} שעות</option>)}
+            </select>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
+        <span className="tag" style={{ flex: 1 }}>{count ? `${count} תזכורות ביום` : "אין תזכורות פעילות"}</span>
+        <button className="btn btn-ghost btn-sm" disabled={perm !== "granted"}
+          onClick={() => { try { new Notification("eatit", { body: "ככה תיראה תזכורת." }); } catch { /* blocked */ } }}>
+          {perm === "granted" ? <><Bell size={15} /> בדקו</> : <><BellOff size={15} /> בדקו</>}
+        </button>
+      </div>
+
+      <p style={{ fontSize: 12, lineHeight: 1.6, margin: "10px 0 0", color: "var(--muted)" }}>
+        <Droplet size={12} style={{ verticalAlign: -2, color: "var(--sky)" }} /> התזכורות נשלחות כשהאפליקציה פתוחה ברקע. לתזכורות שעובדות גם כשהמכשיר נעול, כדאי להגדיר אותן במקביל בשעון המעורר.
+      </p>
+    </div>
+  );
+}
+
+/* -------------------------- error boundary ------------------------- */
+class Boundary extends React.Component {
+  constructor(p) { super(p); this.state = { err: null }; }
+  static getDerivedStateFromError(err) { return { err }; }
+  render() {
+    if (!this.state.err) return this.props.children;
+    return (
+      <div className="eatit"><style>{CSS}</style>
+        <div className="wrap" style={{ paddingTop: 50 }}>
+          <div className="panel" style={{ textAlign: "center" }}>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}><Panda size={64} /></div>
+            <div className="hand" style={{ fontSize: 24, marginBottom: 6 }}>משהו נתקע</div>
+            <p style={{ fontSize: 13.5, lineHeight: 1.6, color: "var(--muted)" }}>
+              אפשר לחזור למסך הפרופילים ולנסות שוב.
+            </p>
+            <button className="btn btn-primary" style={{ width: "100%", marginTop: 10 }}
+              onClick={() => { store.set("eatit:active", null); this.setState({ err: null }); }}>
+              חזרה למסך הכניסה
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+}
+
+export default function EatIt() {
+  return <Boundary><EatItApp /></Boundary>;
+}
