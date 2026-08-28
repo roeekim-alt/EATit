@@ -1,0 +1,300 @@
+        </div>
+        <p style={{ fontSize: 12.5, lineHeight: 1.6, margin: "10px 0 0", color: "var(--muted)" }}>
+          הממוצע השבועי אומר יותר מכל יום בודד. יום אחד גבוה לא משנה מגמה <Heart s={11} />
+        </p>
+      </div>
+
+      <div className="panel tilt-b">
+        <div className="hand" style={{ fontSize: 23, marginBottom: 8 }}>מעקב משקל</div>
+        {wE.length > 1 && (
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 62, marginBottom: 8 }}>
+            {wE.map(([k, v]) => (
+              <div key={k} style={{ flex: 1, display: "flex", alignItems: "flex-end", height: "100%" }}>
+                <div className="barcol" style={{ height: `${wMax === wMin ? 48 : 14 + ((v - wMin) / (wMax - wMin)) * 44}px`, background: "var(--sky)" }} title={`${v} ק״ג`} />
+              </div>
+            ))}
+          </div>
+        )}
+        {wE.length > 0 && (
+          <div style={{ fontSize: 14, marginBottom: 10 }}>
+            אחרון: <b className="num">{wE[wE.length - 1][1]} ק״ג</b>
+            {wE.length > 1 && <span style={{ color: "var(--muted)" }}> · שינוי מאז ההתחלה: {(wE[wE.length - 1][1] - wE[0][1]).toFixed(1)} ק״ג</span>}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 8 }}>
+          <input className="field num" type="number" inputMode="decimal" step="0.1" placeholder="המשקל היום"
+            value={w} onChange={e => setW(e.target.value)} aria-label="משקל בקילוגרמים" />
+          <button className="btn btn-ghost" disabled={!(+w > 25 && +w < 300)} onClick={() => { onWeight(+w); setW(""); }}>
+            <Scale size={18} /> רשמו
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ------------------------------ goals ------------------------------ */
+function Goals({ profile, onSave, burn, workouts, onAddMove, onRemoveMove, rem, onRem,
+                 me, onSignOut, onRename, onRemoveAcc, bundle }) {
+  const [d, setD] = useState(profile);
+  const set = (k, v) => setD(s => ({ ...s, [k]: v }));
+  useEffect(() => setD(profile), [profile]);
+  const t = computeTargets(d, burn);
+  const dirty = JSON.stringify(d) !== JSON.stringify(profile);
+
+  return (
+    <>
+      <div className="panel tilt-b gold" style={{ marginBottom: 14 }}>
+        <div className="tag">היעד היומי</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+              <span className="big" style={{ color: "var(--chili)" }}>{t.kcal}</span>
+              <span style={{ fontSize: 14 }}>קלוריות</span>
+            </div>
+            <div className="num" style={{ fontSize: 13, color: "var(--muted)", marginTop: 3 }}>
+              {t.base} בסיס{t.extra > 0 && <span style={{ color: "var(--sage)" }}> + {t.extra} מהאימון</span>}
+            </div>
+            <div style={{ display: "flex", gap: 12, marginTop: 6, fontSize: 13.5, flexWrap: "wrap" }}>
+              <span><b style={{ color: "var(--sage)" }}>{t.protein}g</b> חלבון</span>
+              <span><b style={{ color: "#B9812A" }}>{t.carbs}g</b> פחמימות</span>
+              <span><b style={{ color: "var(--chili)" }}>{t.fat}g</b> שומן</span>
+            </div>
+          </div>
+          <Bowl pct={1} size={92} />
+        </div>
+        <p style={{ fontSize: 12.5, lineHeight: 1.6, margin: "10px 0 0", color: "var(--muted)" }}>
+          ההוצאה היומית המשוערת שלכם היא {t.tdee} קלוריות (Mifflin‑St Jeor). היעד נגזר ממנה לפי המטרה והקצב.
+          {t.floored && " העלינו אותו לרצפה בטוחה — גירעון עמוק מדי קשה להחזיק."}
+        </p>
+      </div>
+
+      <div className="panel" style={{ marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <span className="numdot">1</span><span className="hand" style={{ fontSize: 23 }}>המטרה</span>
+        </div>
+        <div style={{ display: "grid", gap: 8, marginBottom: 12 }}>
+          {[["lose", "לרדת במשקל"], ["maintain", "לשמור על המשקל"], ["gain", "לעלות במסה"]].map(([v, tt]) => (
+            <button key={v} className="opt" data-on={d.goal === v ? 1 : 0} onClick={() => set("goal", v)}>{tt}</button>
+          ))}
+        </div>
+        {d.goal !== "maintain" && (<>
+          <div className="label">קצב</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {[["gentle", "רגוע · ¼ ק״ג"], ["steady", "יציב · ½ ק״ג"]].map(([v, tt]) => (
+              <button key={v} className="opt" style={{ flex: 1, justifyContent: "center", fontSize: 14 }}
+                data-on={d.rate === v ? 1 : 0} onClick={() => set("rate", v)}>{tt}</button>
+            ))}
+          </div>
+        </>)}
+      </div>
+
+      <div className="panel tilt-a" style={{ marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <span className="numdot">2</span><span className="hand" style={{ fontSize: 23 }}>תנועה ואימונים</span>
+        </div>
+        <div className="label">איך האימונים נכנסים לחשבון?</div>
+        <div style={{ display: "grid", gap: 8, marginBottom: 12 }}>
+          {[["included", "יעד קבוע", "רמת הפעילות הכללית כבר בפנים. אימונים נרשמים למעקב ולא משנים את היעד."],
+            ["added", "יעד שזז לפי האימון", "הבסיס מחושב ליום בלי אימון, וכל אימון מוסיף ליעד של אותו יום."]].map(([v, tt, s]) => (
+            <button key={v} className="opt" data-on={d.burnMode === v ? 1 : 0} onClick={() => set("burnMode", v)}
+              style={{ flexDirection: "column", alignItems: "flex-start", gap: 2, minHeight: 62 }}>
+              <span>{tt}</span><span style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.45 }}>{s}</span>
+            </button>
+          ))}
+        </div>
+
+        {d.burnMode !== "added" && (<>
+          <div className="label">כמה זזים בשבוע?</div>
+          <div style={{ display: "grid", gap: 8, marginBottom: 12 }}>
+            {[["low", "בעיקר יושבים"], ["light", "אימון 1–2"], ["mid", "אימון 3–4"], ["high", "אימון 5+"]].map(([v, tt]) => (
+              <button key={v} className="opt" data-on={d.activity === v ? 1 : 0} onClick={() => set("activity", v)}>{tt}</button>
+            ))}
+          </div>
+        </>)}
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <span className="tag">האימונים של היום</span>
+          <button className="btn btn-ghost btn-sm" onClick={onAddMove}><Plus size={16} /> אימון</button>
+        </div>
+        {workouts.length === 0
+          ? <p style={{ fontSize: 13, color: "var(--muted)", margin: 0 }}>עוד לא נרשם אימון היום.</p>
+          : workouts.map(w => {
+              const A = ACTS.find(a => a.id === w.act) || ACTS[0];
+              return (
+                <div className="ing" key={w.id}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                    <A.I size={17} style={{ color: "var(--sage)" }} /> {A.t}
+                    <span className="num" style={{ fontSize: 12.5, color: "var(--muted)" }}>· {w.minutes} דק׳ · {w.intensityLabel}</span>
+                  </span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <b className="num" style={{ color: "var(--sage)" }}>{w.kcal}</b>
+                    <button onClick={() => onRemoveMove(w.id)} aria-label="מחיקת אימון" style={{ color: "var(--muted)" }}><Trash2 size={15} /></button>
+                  </span>
+                </div>
+              );
+            })}
+        <p style={{ fontSize: 12, lineHeight: 1.6, margin: "10px 0 0", color: "var(--muted)" }}>
+          השריפה מחושבת לפי ערכי MET מה‑Compendium of Physical Activities, משקל הגוף, משך האימון והעוצמה, בניכוי מה שהגוף היה שורף ממילא באותן דקות.
+        </p>
+      </div>
+
+      <Reminders rem={rem} onRem={onRem} cupGoal={waterGoal(d.weight)} />
+
+      <div className="panel" style={{ marginTop: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <span className="numdot">4</span><span className="hand" style={{ fontSize: 23 }}>עדכון נתונים</span>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+          {[["age", "גיל"], ["height", "גובה ס״מ"], ["weight", "משקל ק״ג"]].map(([k, l]) => (
+            <div key={k}>
+              <label className="label" htmlFor={"g-" + k}>{l}</label>
+              <input id={"g-" + k} className="field num" type="number" inputMode="numeric"
+                value={d[k]} onChange={e => set(k, +e.target.value)} />
+            </div>
+          ))}
+        </div>
+        <div className="label">מין ביולוגי</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          {[["female", "נקבה"], ["male", "זכר"]].map(([v, tt]) => (
+            <button key={v} className="opt" style={{ flex: 1, justifyContent: "center" }}
+              data-on={d.sex === v ? 1 : 0} onClick={() => set("sex", v)}>{tt}</button>
+          ))}
+        </div>
+
+        <label className="label" htmlFor="g-prefs">מה אתם אוכלים ומה לא</label>
+        <input id="g-prefs" className="field" value={d.prefs || ""} onChange={e => set("prefs", e.target.value)}
+          placeholder="צמחוני, בלי חצילים, כשר, אלרגיה לאגוזים" />
+        <p style={{ fontSize: 12, lineHeight: 1.6, margin: "7px 0 0", color: "var(--muted)" }}>
+          ההצעות לארוחה הבאה והייעוץ יכבדו את זה.
+        </p>
+      </div>
+
+      <button className="btn btn-primary" style={{ width: "100%", marginTop: 14 }} disabled={!dirty} onClick={() => onSave(d)}>
+        שמרו את היעד המעודכן
+      </button>
+
+      <Account me={me} onSignOut={onSignOut} onRename={onRename} onRemoveAcc={onRemoveAcc} bundle={bundle} />
+
+      <p style={{ fontSize: 12.5, lineHeight: 1.65, margin: "14px 6px 0", color: "var(--muted)" }}>
+        ההערכות כאן הן קירוב, לא מדידת מעבדה — מספיק טוב כדי לעקוב אחרי מגמה לאורך שבועות. אם יש מצב רפואי או צורך בתפריט מדויק, שווה לעבור על היעדים עם דיאטן/ית.
+      </p>
+    </>
+  );
+}
+
+/* ----------------------------- account ----------------------------- */
+function Account({ me, onSignOut, onRename, onRemoveAcc, bundle }) {
+  const [name, setName] = useState(me.name);
+  const [avatar, setAvatar] = useState(me.avatar);
+  const [code, setCode] = useState("");
+  const [copied, setCopied] = useState(false);
+  const dirty = name.trim() !== me.name || avatar !== me.avatar;
+
+  function makeCode() {
+    try {
+      setCode(btoa(unescape(encodeURIComponent(JSON.stringify({ name: me.name, avatar: me.avatar, data: bundle.data })))));
+    } catch { setCode(""); }
+  }
+  function copy() {
+    try { navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* manual copy */ }
+  }
+
+  return (
+    <div className="panel tilt-b" style={{ marginTop: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <span className="numdot">5</span><span className="hand" style={{ fontSize: 23 }}>הפרופיל שלי</span>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+        <Mascot kind={avatar} size={52} />
+        <div style={{ flex: 1 }}>
+          <label className="label" htmlFor="acc-rename">שם</label>
+          <input id="acc-rename" className="field" value={name} onChange={e => setName(e.target.value)} />
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 10 }}>
+        {AVATARS.map(a => (
+          <button key={a.id} className="avatarbtn" data-on={avatar === a.id ? 1 : 0} onClick={() => setAvatar(a.id)}>
+            <Mascot kind={a.id} size={34} /><span style={{ fontSize: 11.5 }}>{a.t}</span>
+          </button>
+        ))}
+      </div>
+      <button className="btn btn-ghost btn-sm" style={{ width: "100%", marginBottom: 14 }} disabled={!dirty}
+        onClick={() => onRename(me.id, name.trim(), avatar)}>שמרו שינויים בפרופיל</button>
+
+      <div className="setrow" style={{ display: "block" }}>
+        <div className="tag" style={{ marginBottom: 6 }}>קוד גיבוי</div>
+        <p style={{ fontSize: 12.5, lineHeight: 1.6, color: "var(--muted)", margin: "0 0 8px" }}>
+          הנתונים נשמרים על המכשיר הזה. קוד הגיבוי מאפשר לשחזר את הפרופיל במכשיר אחר.
+        </p>
+        {!code
+          ? <button className="btn btn-ghost btn-sm" style={{ width: "100%" }} onClick={makeCode}>
+              <Link2 size={16} /> צרו קוד גיבוי
+            </button>
+          : <>
+              <div className="code">{code}</div>
+              <button className="btn btn-ghost btn-sm" style={{ width: "100%", marginTop: 8 }} onClick={copy}>
+                {copied ? <><Check size={16} /> הועתק</> : <><Copy size={16} /> העתיקו את הקוד</>}
+              </button>
+            </>}
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={onSignOut}>
+          <LogOut size={16} /> החלפת פרופיל
+        </button>
+        <button className="btn btn-ghost btn-sm" style={{ color: "var(--chili)" }}
+          onClick={() => window.confirm("למחוק את הפרופיל וכל הנתונים שלו?") && onRemoveAcc()}>
+          <Trash2 size={16} /> מחיקה
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------- reminders ---------------------------- */
+function Reminders({ rem, onRem, cupGoal }) {
+  const supported = typeof window !== "undefined" && "Notification" in window;
+  const [perm, setPerm] = useState(supported ? Notification.permission : "unsupported");
+  const set = (k, v) => onRem({ ...rem, [k]: v });
+  const setMealTime = (i, v) => onRem({ ...rem, mealTimes: rem.mealTimes.map((t, j) => j === i ? v : t) });
+  const count = slotsFor(rem).length;
+
+  async function ask() {
+    if (!supported) return;
+    try { setPerm(await Notification.requestPermission()); } catch { setPerm("denied"); }
+  }
+
+  return (
+    <div className="panel tilt-b" style={{ marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <span className="numdot">3</span><span className="hand" style={{ fontSize: 23 }}>תזכורות</span>
+      </div>
+
+      {perm !== "granted" && (
+        <div className="panel gold" style={{ marginBottom: 12, padding: 12 }}>
+          <div style={{ display: "flex", gap: 9, alignItems: "flex-start" }}>
+            <Bell size={19} style={{ color: "var(--gold)", flex: "0 0 auto", marginTop: 2 }} />
+            <div style={{ fontSize: 13, lineHeight: 1.55 }}>
+              {perm === "denied" ? "ההתראות חסומות בהגדרות הדפדפן. אפשר לפתוח אותן שם ולחזור לכאן."
+                : supported ? "כדי לשלוח תזכורות למכשיר צריך אישור חד־פעמי."
+                : "המכשיר הזה לא תומך בהתראות מהדפדפן. אפשר להגדיר תזכורות בשעון המעורר."}
+            </div>
+          </div>
+          {perm === "default" && supported && (
+            <button className="btn btn-gold btn-sm" style={{ width: "100%", marginTop: 10 }} onClick={ask}>
+              <Bell size={16} /> אפשרו התראות
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="setrow">
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 15 }}>תזכורות ארוחה</div>
+          <div style={{ fontSize: 12.5, color: "var(--muted)" }}>שלוש נקודות ביום, בשעות שנוח לכם</div>
+        </div>
+        <button className="switch" data-on={rem.meals ? 1 : 0} onClick={() => set("meals", !rem.meals)}
+          role="switch" aria-checked={rem.meals} aria-label="תזכורות ארוחה"><i /></button>
+      </div>
