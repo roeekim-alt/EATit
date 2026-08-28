@@ -1,0 +1,300 @@
+const Heart = ({ s = 13, c = "var(--blush)" }) => (
+  <svg viewBox="0 0 24 22" width={s} height={s} aria-hidden="true" style={{ verticalAlign: "-1px" }}>
+    <path d="M12,21 C2,13 1,7 5,3.5 C8.5,.5 12,4 12,6 C12,4 15.5,.5 19,3.5 C23,7 22,13 12,21 z" fill={c} />
+  </svg>
+);
+
+/* ----------------------------- storage ----------------------------- */
+const mem = {};
+const withTimeout = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r(null), ms))]);
+const store = {
+  async get(k) {
+    if (k in mem) return mem[k];
+    try {
+      if (typeof window === "undefined" || !window.storage) return null;
+      const r = await withTimeout(window.storage.get(k, false), 2500);
+      const v = r && r.value ? JSON.parse(r.value) : null;
+      mem[k] = v; return v;
+    } catch { return null; }
+  },
+  set(k, v) {
+    mem[k] = v;
+    try {
+      if (typeof window === "undefined" || !window.storage) return;
+      Promise.resolve(window.storage.set(k, JSON.stringify(v), false)).catch(() => {});
+    } catch { /* memory copy holds it */ }
+  }
+};
+const DATA_KEYS = ["profile", "log", "moves", "water", "weights", "reminders", "chat"];
+const kx = (uid, name) => `eatit:u:${uid}:${name}`;
+
+/* ------------------------------ utils ------------------------------ */
+const keyOf = d => { const p = n => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+const DAYS_HE = ["א", "ב", "ג", "ד", "ה", "ו", "ש"];
+const MONTHS_HE = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const r0 = n => Math.round(n || 0);
+const mealNameByHour = h => h < 10 ? "בוקר" : h < 15 ? "צהריים" : h < 19 ? "ביניים" : "ערב";
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+const ACTS = [
+  { id: "walk", t: "הליכה", met: 3.8, I: Footprints },
+  { id: "run", t: "ריצה", met: 9.0, I: Activity },
+  { id: "bike", t: "אופניים", met: 7.5, I: Bike },
+  { id: "swim", t: "שחייה", met: 7.0, I: Waves },
+  { id: "gym", t: "חדר כושר", met: 5.0, I: Dumbbell },
+  { id: "hiit", t: "HIIT", met: 8.3, I: Zap },
+  { id: "yoga", t: "יוגה ופילאטיס", met: 3.0, I: Flower2 },
+  { id: "hike", t: "טיול בשטח", met: 6.0, I: Mountain },
+  { id: "ball", t: "משחק כדור", met: 7.8, I: Trophy }
+];
+const INTENSITY = [["easy", "קל", 0.78], ["mid", "בינוני", 1], ["hard", "חזק", 1.24]];
+
+function burnOf(act, minutes, intensity, kg) {
+  const base = ACTS.find(a => a.id === act);
+  if (!base) return 0;
+  const f = (INTENSITY.find(i => i[0] === intensity) || INTENSITY[1])[2];
+  return Math.max(0, Math.round((((base.met * f) - 1) * 3.5 * (kg || 70) / 200) * minutes));
+}
+
+function computeTargets(p, burn = 0) {
+  const w = +p.weight || 70, ht = +p.height || 170, age = +p.age || 30;
+  const bmr = 10 * w + 6.25 * ht - 5 * age + (p.sex === "male" ? 5 : -161);
+  const added = p.burnMode === "added";
+  const act = added ? 1.2 : ({ low: 1.2, light: 1.375, mid: 1.55, high: 1.725 }[p.activity] || 1.375);
+  const tdee = bmr * act;
+  let kcal = tdee;
+  if (p.goal === "lose") kcal = tdee - (p.rate === "steady" ? 550 : 275);
+  if (p.goal === "gain") kcal = tdee + (p.rate === "steady" ? 400 : 250);
+  const baseKcal = Math.round(kcal / 10) * 10;
+  const extra = added ? Math.round(burn) : 0;
+  const floor = p.sex === "male" ? 1500 : 1300;
+  const finalKcal = Math.max(floor, baseKcal + extra);
+  const protein = Math.round(w * (p.goal === "maintain" ? 1.6 : 1.8));
+  const fat = Math.round((finalKcal * 0.27) / 9);
+  const carbs = Math.max(40, Math.round((finalKcal - protein * 4 - fat * 9) / 4));
+  return { kcal: finalKcal, base: Math.max(floor, baseKcal), extra, protein, carbs, fat,
+    tdee: Math.round(tdee), floored: finalKcal === floor, added };
+}
+const waterGoal = kg => Math.min(14, Math.max(6, Math.round((kg || 70) * 33 / 250)));
+
+function shrink(file, max, q) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onerror = () => reject(new Error("read"));
+    fr.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("decode"));
+      img.onload = () => {
+        const s = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL("image/jpeg", q));
+      };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
+/* ---------------------------- analysis ----------------------------- */
+const PROMPT = `אתה מנתח תזונה מדויק. בתמונה יש ארוחה. זהה את המנה ואת המרכיבים, העריך משקל בגרמים לכל מרכיב לפי מה שנראה בצלחת, וחשב ערכים תזונתיים לפי נתוני USDA FoodData Central.
+
+החזר JSON בלבד. בלי טקסט לפני או אחרי, בלי סימני קוד.
+
+{
+  "is_food": true,
+  "dish": "שם המנה בעברית",
+  "confidence": "high" | "medium" | "low",
+  "items": [{"name":"שם המרכיב בעברית","grams":0,"kcal":0,"protein":0,"carbs":0,"fat":0}],
+  "note": "הערה קצרה בעברית על ההערכה"
+}
+
+אם בתמונה אין אוכל, החזר {"is_food": false, "note": "מה כן רואים בתמונה"}.
+כל המספרים שלמים. הסכום של המרכיבים הוא הסכום של המנה.`;
+
+async function callAPI(body) {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 1000, ...body })
+  });
+  if (!res.ok) throw new Error("net");
+  return res.json();
+}
+
+async function analyzePhoto(dataUrl, hint) {
+  const data = await callAPI({
+    messages: [{ role: "user", content: [
+      { type: "image", source: { type: "base64", media_type: "image/jpeg", data: dataUrl.split(",")[1] } },
+      { type: "text", text: PROMPT + (hint ? `\n\nהמשתמש הוסיף: "${hint}" — קח את זה בחשבון.` : "") }
+    ]}]
+  });
+  const txt = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+  const clean = txt.replace(/```json|```/g, "").trim();
+  const a = clean.indexOf("{"), b = clean.lastIndexOf("}");
+  if (a < 0 || b < 0) throw new Error("parse");
+  return JSON.parse(clean.slice(a, b + 1));
+}
+
+/* --------------------------- advice chat --------------------------- */
+function adviceSystem(ctx) {
+  return `את/ה היועץ/ת התזונה והכושר של אפליקציית eatit. עונה בעברית, בגוף שני, בחום ובלי הטפות.
+
+## על מה מבססים תשובות
+- ערכים קלוריים ותזונתיים: USDA FoodData Central, ומאגר המזון של משרד הבריאות לפריטים ישראליים.
+- המלצות תזונה כלליות: הנחיות משרד הבריאות, WHO, ו-Dietary Guidelines for Americans.
+- חלבון ותזונת ספורט: עמדות ISSN ו-ACSM (טווח מקובל 1.4–2.0 גרם לק״ג ליום למתאמנים).
+- פיזיולוגיה של אימון ושריפת קלוריות: Compendium of Physical Activities (ערכי MET), והנחיות ACSM לתדירות ולעצימות.
+- כשאתה נותן מספר, אמור על מה הוא מבוסס. השתמש בכלי החיפוש כדי לאמת נתונים ולצטט מקור אמיתי — אל תמציא מקורות או מספרים.
+
+## איך עונים
+- קצר: 2–4 פסקאות או רשימה קצרה. בלי כותרות משנה מיותרות.
+- מספרים קונקרטיים כשאפשר, עם טווח ולא ערך בודד מדומה.
+- אם השאלה נוגעת לנתונים של המשתמש שמופיעים למטה, השתמש בהם.
+
+## גבולות
+- אינך רופא/ה או דיאטן/ית קליני/ת. במצב רפואי, הריון, תרופות, או צורך בתפריט אישי — אמור זאת והפנה לדיאטן/ית קליני/ת.
+- אל תמליץ על גירעון קלורי קיצוני, צום ממושך, ניקויים או קיצוץ מתחת ל-1200–1500 קלוריות ליום בלי ליווי מקצועי.
+- אם עולים סימנים של יחס מעוות לאוכל או להפרעת אכילה — הגב בעדינות, אל תיתן תוכנית הגבלה, ועודד פנייה לעזרה מקצועית (בישראל: עמותת "לב אחד" או קופת החולים).
+
+## נתוני המשתמש כרגע
+${ctx}`;
+}
+
+/* ---------------------- free-text estimation ----------------------- */
+async function estimateFromText(text) {
+  const data = await callAPI({
+    messages: [{ role: "user", content:
+`המשתמש הקליד תיאור של ארוחה בעברית. העריך את הערכים התזונתיים שלה.
+
+התיאור: "${text}"
+
+כללים:
+- ערכים לפי USDA FoodData Central ומאגר המזון של משרד הבריאות למוצרים ישראליים.
+- אם התיאור מציין כמות (למשל "2 פרוסות", "קופסת טונה", "צלחת") — כבד אותה.
+- אם לא צוינה כמות, הנח מנה סטנדרטית אחת וכתוב במפורש ב-portion מה הנחת.
+- פרק למרכיבים עם משקל בגרמים. הסכום של המרכיבים הוא הסכום של המנה.
+- היה ריאליסטי, לא אופטימי. רוטב, שמן וממרח נספרים.
+
+החזר JSON בלבד, בלי טקסט נוסף ובלי סימני קוד:
+{"is_food":true,"dish":"שם מסודר למנה","portion":"הכמות שהנחת","confidence":"high"|"medium"|"low","items":[{"name":"מרכיב","grams":0,"kcal":0,"protein":0,"carbs":0,"fat":0}],"note":"מה לא היה ברור, משפט אחד"}
+
+אם זה לא תיאור של אוכל, החזר {"is_food":false,"note":"הסבר קצר"}.` }]
+  });
+  const txt = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+  const clean = txt.replace(/```json|```/g, "").trim();
+  const a = clean.indexOf("{"), b = clean.lastIndexOf("}");
+  if (a < 0) throw new Error("parse");
+  const r = JSON.parse(clean.slice(a, b + 1));
+  if (r.is_food === false) return r;
+  const items = (r.items || []).map(i => ({ ...i }));
+  const sum = items.reduce((acc, i) => ({
+    kcal: acc.kcal + (+i.kcal || 0), protein: acc.protein + (+i.protein || 0),
+    carbs: acc.carbs + (+i.carbs || 0), fat: acc.fat + (+i.fat || 0)
+  }), { kcal: 0, protein: 0, carbs: 0, fat: 0 });
+  if (!sum.kcal) throw new Error("parse");
+  return { ...r, items, sum };
+}
+
+/* ------------------------ next-meal suggester ---------------------- */
+const MODES = [
+  ["home", "מבשל/ת בבית", "מנות פשוטות ממצרכים שיש ברוב הבתים בישראל, עד 20 דקות הכנה"],
+  ["fast", "משהו מהיר", "בלי בישול או עד 5 דקות — כריך, יוגורט, פירות, שייק"],
+  ["out", "אוכל בחוץ", "מה להזמין בטייק אוויי או במסעדה בישראל, כולל איך לבקש שיתאים ליעד"]
+];
+
+async function suggestMeals(ctx, mode, prefs) {
+  const m = MODES.find(x => x[0] === mode) || MODES[0];
+  const data = await callAPI({
+    messages: [{ role: "user", content:
+`הצע שלוש אפשרויות לארוחה הבאה שמתאימות למי שמתואר למטה. הקשר: ${m[2]}.
+
+כללים:
+- כל אפשרות חייבת להיכנס בתקציב הקלוריות שנותר, ולא לרדת מתחת ל־150 קלוריות.
+- תן עדיפות למאקרו שהכי בפיגור אצלו היום (בדרך כלל חלבון).
+- ערכים תזונתיים לפי USDA FoodData Central. מספרים שלמים וריאליסטיים למנה בגודל שציינת.
+- אוכל ישראלי ונגיש. בלי מוצרים אקזוטיים.
+- אם התקציב שנותר קטן, אמור זאת ב-note והצע משהו קל אבל אמיתי — לעולם אל תציע לדלג על ארוחה.
+${prefs ? `- העדפות והגבלות של המשתמש שחובה לכבד: ${prefs}` : ""}
+
+החזר JSON בלבד, בלי טקסט נוסף ובלי סימני קוד:
+{"note":"משפט קצר בעברית על הבחירה","options":[{"name":"שם המנה","portion":"תיאור הכמות, למשל 150 גרם + חצי כוס","why":"למה זה מתאים עכשיו, משפט אחד","kcal":0,"protein":0,"carbs":0,"fat":0,"howto":"הכנה או הזמנה בשורה אחת"}]}
+
+נתוני המשתמש:
+${ctx}` }]
+  });
+  const txt = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+  const clean = txt.replace(/```json|```/g, "").trim();
+  const a = clean.indexOf("{"), b = clean.lastIndexOf("}");
+  if (a < 0) throw new Error("parse");
+  const out = JSON.parse(clean.slice(a, b + 1));
+  if (!Array.isArray(out.options) || !out.options.length) throw new Error("parse");
+  return out;
+}
+
+async function askAdvice(history, ctx) {
+  const data = await callAPI({
+    system: adviceSystem(ctx),
+    messages: history.slice(-12).map(m => ({ role: m.role, content: m.text })),
+    tools: [{ type: "web_search_20250305", name: "web_search" }]
+  });
+  const blocks = (data.content || []).filter(b => b.type === "text");
+  const text = blocks.map(b => b.text).join("").trim();
+  const seen = {}, sources = [];
+  blocks.forEach(b => (b.citations || []).forEach(c => {
+    const u = c.url || c.source;
+    if (u && !seen[u]) { seen[u] = 1; sources.push({ url: u, title: c.title || new URL(u).hostname }); }
+  }));
+  if (!text) throw new Error("empty");
+  return { text, sources: sources.slice(0, 5) };
+}
+
+/* --------------------------- reminders ----------------------------- */
+const DEFAULT_REM = { meals: true, water: true, mealTimes: ["08:00", "13:00", "19:00"],
+  waterFrom: "09:00", waterTo: "21:00", waterEvery: 2 };
+
+function slotsFor(rem) {
+  const out = [];
+  if (rem.meals) rem.mealTimes.forEach((t, i) => out.push({ key: "m" + i, time: t, title: "זמן ארוחה",
+    body: ["בוקר טוב! מה בצלחת?", "הפסקת צהריים — אל תדלגו", "ארוחת ערב. צלמו ונרשום"][i] || "זמן ארוחה" }));
+  if (rem.water) {
+    const [fh, fm] = rem.waterFrom.split(":").map(Number);
+    const [th] = rem.waterTo.split(":").map(Number);
+    for (let h = fh; h <= th; h += Math.max(1, rem.waterEvery))
+      out.push({ key: "w" + h, time: `${String(h).padStart(2, "0")}:${String(fm).padStart(2, "0")}`,
+        title: "כוס מים", body: "רגע של מים. הגוף אומר תודה" });
+  }
+  return out.sort((a, b) => a.time < b.time ? -1 : 1);
+}
+
+/* ============================== root =============================== */
+function EatItApp() {
+  const [ready, setReady] = useState(false);
+  const [accounts, setAccounts] = useState([]);
+  const [active, setActive] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    const bail = setTimeout(() => { if (alive) setReady(true); }, 3000);
+    (async () => {
+      try {
+        const [accs, act] = await Promise.all([store.get("eatit:accounts"), store.get("eatit:active")]);
+        if (!alive) return;
+        const list = Array.isArray(accs) ? accs : [];
+        setAccounts(list);
+        if (act && list.some(a => a.id === act)) setActive(act);
+      } catch { /* fresh */ }
+      if (alive) { clearTimeout(bail); setReady(true); }
+    })();
+    return () => { alive = false; clearTimeout(bail); };
+  }, []);
+
+  const createAccount = (name, avatar, seed) => {
+    const acc = { id: uid(), name: name.trim(), avatar, created: Date.now() };
+    const list = [...accounts, acc];
+    setAccounts(list); store.set("eatit:accounts", list);
+    if (seed) DATA_KEYS.forEach(k => { if (seed[k] != null) store.set(kx(acc.id, k), seed[k]); });
+    setActive(acc.id); store.set("eatit:active", acc.id);
+  };
+  const signIn = id => { setActive(id); store.set("eatit:active", id); };
