@@ -1,0 +1,300 @@
+      const [big, small] = await Promise.all([shrink(file, 1024, 0.8), shrink(file, 260, 0.6)]);
+      setPhoto(big); setThumb(small); setState("pick"); setResult(null); setErr("");
+    } catch { setErr("לא הצלחנו לקרוא את התמונה. נסו קובץ אחר."); setState("error"); }
+  }
+  async function run() {
+    setState("busy"); setErr("");
+    try {
+      const r = await analyzePhoto(photo, hint);
+      if (r.is_food === false) { setResult(r); setState("notfood"); return; }
+      const items = (r.items || []).map(i => ({ ...i }));
+      const sum = items.reduce((a, i) => ({
+        kcal: a.kcal + (+i.kcal || 0), protein: a.protein + (+i.protein || 0),
+        carbs: a.carbs + (+i.carbs || 0), fat: a.fat + (+i.fat || 0)
+      }), { kcal: 0, protein: 0, carbs: 0, fat: 0 });
+      setResult({ ...r, items, sum }); setMult(1); setState("done");
+    } catch (e) {
+      setErr(e.message === "net" ? "הניתוח לא רץ. בדקו חיבור לאינטרנט ונסו שוב."
+        : "התשובה חזרה לא קריאה. נסו שוב, או הזינו את הארוחה ידנית.");
+      setState("error");
+    }
+  }
+  const conf = { high: "זיהוי ברור", medium: "זיהוי סביר", low: "הערכה גסה" }[result?.confidence];
+
+  return (
+    <div className="sheet-bg" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="sheet"><div className="grab" />
+        <div style={{ padding: "8px 14px 26px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <span className="hand" style={{ fontSize: 26 }}>ארוחה חדשה</span>
+            <button className="iconbtn" onClick={onClose} aria-label="סגירה"><X size={19} /></button>
+          </div>
+
+          {!photo && (
+            <div className="panel" style={{ textAlign: "center" }}>
+              <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }} className="bob"><Bowl pct={0.6} size={104} /></div>
+              <label className="btn btn-primary" style={{ width: "100%", marginBottom: 8 }} htmlFor="cam-in">
+                <Camera size={20} /> פתחו מצלמה
+                <input id="cam-in" type="file" accept="image/*" capture="environment"
+                  style={{ position: "absolute", width: 1, height: 1, opacity: 0 }}
+                  onChange={e => pick(e.target.files && e.target.files[0])} />
+              </label>
+              <label className="btn btn-ghost" style={{ width: "100%" }} htmlFor="lib-in">
+                <ImageIcon size={18} /> בחרו מהגלריה
+                <input id="lib-in" type="file" accept="image/*"
+                  style={{ position: "absolute", width: 1, height: 1, opacity: 0 }}
+                  onChange={e => pick(e.target.files && e.target.files[0])} />
+              </label>
+              <p style={{ fontSize: 12.5, lineHeight: 1.55, margin: "12px 0 0", color: "var(--muted)" }}>
+                צלמו מלמעלה, עם כל הצלחת בפריים. ככה הזיהוי הכי מדויק.
+              </p>
+            </div>
+          )}
+
+          {photo && (<>
+            <div style={{ position: "relative", marginBottom: 12 }}>
+              <img src={photo} alt="הארוחה שצולמה" style={{ width: "100%", borderRadius: 16, display: "block", maxHeight: 250, objectFit: "cover", border: "3px solid var(--ink)" }} />
+              <button className="iconbtn" style={{ position: "absolute", top: 8, left: 8 }}
+                onClick={() => { setPhoto(null); setResult(null); setState("pick"); }} aria-label="החלפת תמונה"><RotateCcw size={16} /></button>
+            </div>
+
+            {state !== "done" && (<>
+              <label className="label" htmlFor="hint">רוצים להוסיף פרט? (לא חובה)</label>
+              <input id="hint" className="field" placeholder="למשל: הרוטב על הצד, טחינה גולמית"
+                value={hint} onChange={e => setHint(e.target.value)} style={{ marginBottom: 12 }} />
+              <button className="btn btn-primary" style={{ width: "100%" }} onClick={run} disabled={state === "busy"}>
+                {state === "busy" ? <><Loader2 size={19} className="spin" /> מזהים את המנה…</> : <><Check size={19} /> נתחו את הארוחה</>}
+              </button>
+            </>)}
+
+            {(state === "error" || state === "notfood") && (
+              <div className="panel" style={{ marginTop: 12, borderColor: "var(--chili)", display: "flex", gap: 10 }}>
+                <AlertCircle size={19} style={{ color: "var(--chili)", flex: "0 0 auto", marginTop: 2 }} />
+                <div style={{ fontSize: 13.5, lineHeight: 1.55 }}>
+                  {state === "notfood" ? <>לא זיהינו אוכל בתמונה{result?.note ? ` — ${result.note}` : ""}. נסו לצלם את הצלחת מקרוב יותר.</> : err}
+                </div>
+              </div>
+            )}
+
+            {state === "done" && result && (<>
+              <div className="panel tilt-b gold" style={{ margin: "14px 0" }}>
+                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+                  <span className="hand" style={{ fontSize: 26 }}>{result.dish}</span>
+                  {conf && <span className="chip">{conf}</span>}
+                </div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}>
+                  <span className="big" style={{ color: "var(--chili)" }}>{r0(result.sum.kcal * mult)}</span>
+                  <span style={{ fontSize: 14 }}>קלוריות</span>
+                </div>
+                <div style={{ display: "flex", gap: 14, marginTop: 6, fontSize: 14 }}>
+                  <span><b style={{ color: "var(--sage)" }}>{r0(result.sum.protein * mult)}g</b> חלבון</span>
+                  <span><b style={{ color: "#B9812A" }}>{r0(result.sum.carbs * mult)}g</b> פחמימות</span>
+                  <span><b style={{ color: "var(--chili)" }}>{r0(result.sum.fat * mult)}g</b> שומן</span>
+                </div>
+              </div>
+
+              <label className="label" htmlFor="mult">כמה אכלתם מזה? <b style={{ color: "var(--ink)" }}>{mult}×</b></label>
+              <input id="mult" className="slider" type="range" min="0.25" max="2.5" step="0.25"
+                value={mult} onChange={e => setMult(+e.target.value)} />
+              <div className="tag" style={{ display: "flex", justifyContent: "space-between", fontSize: 15, marginBottom: 14 }}>
+                <span>רבע</span><span>מנה שלמה</span><span>×2.5</span>
+              </div>
+
+              <div className="panel">
+                <div className="hand" style={{ fontSize: 22, marginBottom: 4 }}>מה זיהינו בצלחת</div>
+                {result.items.map((it, i) => (
+                  <div className="ing" key={i}>
+                    <span><Heart s={11} /> {it.name} <span className="num" style={{ fontSize: 12.5, color: "var(--muted)" }}>· {r0(it.grams * mult)}g</span></span>
+                    <span className="num" style={{ color: "var(--muted)" }}>{r0(it.kcal * mult)} קק״ל</span>
+                  </div>
+                ))}
+                {result.note && <p style={{ fontSize: 12.5, lineHeight: 1.55, margin: "10px 0 0", color: "var(--muted)" }}>{result.note}</p>}
+              </div>
+
+              <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                <button className="btn btn-ghost" onClick={run}><RotateCcw size={17} /> שוב</button>
+                <button className="btn btn-gold" style={{ flex: 1 }} onClick={() => onSave({
+                  id: uid(), dish: result.dish || "ארוחה", slot: mealNameByHour(new Date().getHours()), photo: thumb,
+                  kcal: result.sum.kcal * mult, protein: result.sum.protein * mult,
+                  carbs: result.sum.carbs * mult, fat: result.sum.fat * mult, items: result.items, mult
+                })}><Check size={19} /> הוסיפו ליומן</button>
+              </div>
+            </>)}
+          </>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* --------------------------- manual sheet -------------------------- */
+function ManualSheet({ onClose, onSave, initial }) {
+  const [f, setF] = useState({
+    dish: initial?.dish || "", kcal: initial ? String(r0(initial.kcal)) : "",
+    protein: initial ? String(r0(initial.protein)) : "", carbs: initial ? String(r0(initial.carbs)) : "",
+    fat: initial ? String(r0(initial.fat)) : ""
+  });
+  const [est, setEst] = useState(null);      // { state, data, err }
+  const set = (k, v) => setF(s => ({ ...s, [k]: v }));
+  const ok = f.dish.trim() && +f.kcal > 0;
+  const busy = est?.state === "busy";
+
+  /* typing a new dish invalidates the previous estimate */
+  function setDish(v) { set("dish", v); if (est && est.state !== "busy") setEst(null); }
+
+  async function estimate() {
+    const q = f.dish.trim();
+    if (!q || busy) return;
+    setEst({ state: "busy" });
+    try {
+      const r = await estimateFromText(q);
+      if (r.is_food === false) { setEst({ state: "notfood", data: r }); return; }
+      setF(s => ({
+        ...s,
+        dish: r.dish || s.dish,
+        kcal: String(r0(r.sum.kcal)), protein: String(r0(r.sum.protein)),
+        carbs: String(r0(r.sum.carbs)), fat: String(r0(r.sum.fat))
+      }));
+      setEst({ state: "done", data: r });
+    } catch (e) {
+      setEst({ state: "error", err: e.message === "net"
+        ? "החישוב לא רץ. בדקו חיבור לאינטרנט ונסו שוב."
+        : "לא הצלחנו להעריך את זה. נסו לנסח מפורט יותר, למשל \"סלט עם קופסת טונה וכף מיונז\"." });
+    }
+  }
+
+  const conf = { high: "הערכה טובה", medium: "הערכה סבירה", low: "הערכה גסה" }[est?.data?.confidence];
+
+  return (
+    <div className="sheet-bg" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="sheet"><div className="grab" />
+        <div style={{ padding: "8px 14px 26px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <span className="hand" style={{ fontSize: 26 }}>{initial ? "עריכת ארוחה" : "הוספה ידנית"}</span>
+            <button className="iconbtn" onClick={onClose} aria-label="סגירה"><X size={19} /></button>
+          </div>
+
+          <div className="panel">
+            <label className="label" htmlFor="mdish">מה אכלתם</label>
+            <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+              <input id="mdish" className="field" value={f.dish} onChange={e => setDish(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); estimate(); } }}
+                placeholder="סלט עם טונה, 2 פרוסות לחם וביצה" />
+              <button className="btn btn-sage" style={{ minWidth: 106, padding: "0 12px", fontSize: 14.5 }}
+                onClick={estimate} disabled={busy || !f.dish.trim()}>
+                {busy ? <Loader2 size={17} className="spin" /> : <><Sparkle size={16} /> חשבו לי</>}
+              </button>
+            </div>
+            <p style={{ fontSize: 12, lineHeight: 1.55, margin: "0 0 12px", color: "var(--muted)" }}>
+              כתבו במילים שלכם ואנחנו נעריך את הערכים. ככל שתציינו כמויות — מדויק יותר.
+            </p>
+
+            {est?.state === "done" && est.data && (
+              <div className="panel sage" style={{ marginBottom: 12, padding: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                  <span className="tag" style={{ color: "var(--ink)" }}>{est.data.portion || "מנה אחת"}</span>
+                  {conf && <span className="chip">{conf}</span>}
+                </div>
+                {est.data.items.map((it, i) => (
+                  <div className="ing" key={i} style={{ padding: "6px 0" }}>
+                    <span style={{ fontSize: 13.5 }}>{it.name}
+                      <span className="num" style={{ fontSize: 12, color: "var(--muted)" }}> · {r0(it.grams)}g</span>
+                    </span>
+                    <span className="num" style={{ fontSize: 13, color: "var(--muted)" }}>{r0(it.kcal)} קק״ל</span>
+                  </div>
+                ))}
+                {est.data.note && (
+                  <p style={{ fontSize: 12, lineHeight: 1.55, margin: "8px 0 0", color: "var(--muted)" }}>{est.data.note}</p>
+                )}
+                <p style={{ fontSize: 12, lineHeight: 1.55, margin: "6px 0 0", color: "var(--muted)" }}>
+                  המספרים למטה מולאו אוטומטית — אפשר לתקן כל אחד מהם.
+                </p>
+              </div>
+            )}
+
+            {(est?.state === "error" || est?.state === "notfood") && (
+              <div className="panel" style={{ marginBottom: 12, padding: 12, borderColor: "var(--chili)",
+                display: "flex", gap: 9 }}>
+                <AlertCircle size={18} style={{ color: "var(--chili)", flex: "0 0 auto", marginTop: 2 }} />
+                <span style={{ fontSize: 13, lineHeight: 1.55 }}>
+                  {est.state === "notfood"
+                    ? `זה לא נשמע כמו אוכל${est.data?.note ? ` — ${est.data.note}` : ""}. אפשר להזין את הערכים ידנית.`
+                    : est.err}
+                </span>
+              </div>
+            )}
+
+            <label className="label" htmlFor="mkcal">קלוריות</label>
+            <input id="mkcal" className="field num" type="number" inputMode="numeric" value={f.kcal}
+              onChange={e => set("kcal", e.target.value)} placeholder="420" style={{ marginBottom: 12 }} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              {[["protein", "חלבון g"], ["carbs", "פחמימות g"], ["fat", "שומן g"]].map(([k, l]) => (
+                <div key={k}>
+                  <label className="label" htmlFor={"m" + k}>{l}</label>
+                  <input id={"m" + k} className="field num" type="number" inputMode="numeric"
+                    value={f[k]} onChange={e => set(k, e.target.value)} placeholder="0" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <button className="btn btn-gold" style={{ width: "100%", marginTop: 14 }} disabled={!ok}
+            onClick={() => onSave({
+              id: initial?.id || uid(), dish: f.dish.trim(),
+              slot: initial?.slot || mealNameByHour(new Date().getHours()), photo: initial?.photo || null,
+              kcal: +f.kcal, protein: +f.protein || 0, carbs: +f.carbs || 0, fat: +f.fat || 0,
+              items: est?.data?.items || initial?.items
+            })}>{initial ? "שמרו שינויים" : "הוסיפו ליומן"}</button>
+          {!ok && <p style={{ fontSize: 12.5, marginTop: 10, color: "var(--muted)" }}>
+            כתבו מה אכלתם ולחצו "חשבו לי", או מלאו את הקלוריות ידנית.
+          </p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+/* ------------------------------ trend ------------------------------ */
+function Trend({ log, moves, profile, weights, onWeight }) {
+  const [w, setW] = useState("");
+  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => {
+    const d = addDays(new Date(), i - 6), k = keyOf(d);
+    return { d, k, kcal: (log[k] || []).reduce((a, m) => a + m.kcal, 0),
+      burn: (moves[k] || []).reduce((a, m) => a + m.kcal, 0), logged: (log[k] || []).length > 0 };
+  }), [log, moves]);
+
+  const logged = days.filter(x => x.logged);
+  const avg = logged.length ? Math.round(logged.reduce((a, x) => a + x.kcal, 0) / logged.length) : 0;
+  const totalBurn = days.reduce((a, x) => a + x.burn, 0);
+  const activeDays = days.filter(x => x.burn > 0).length;
+  const targetOf = x => computeTargets(profile, x.burn).kcal;
+  const onTarget = logged.filter(x => Math.abs(x.kcal - targetOf(x)) <= targetOf(x) * 0.1).length;
+  const max = Math.max(computeTargets(profile).kcal * 1.25, ...days.map(x => x.kcal), 1);
+
+  const wE = Object.entries(weights).sort(([a], [b]) => a < b ? -1 : 1).slice(-10);
+  const wV = wE.map(([, v]) => v);
+  const wMin = Math.min(...wV), wMax = Math.max(...wV);
+
+  return (
+    <>
+      <div className="panel tilt-a" style={{ marginBottom: 14 }}>
+        <div className="hand" style={{ fontSize: 23, marginBottom: 2 }}>השבוע שלכם</div>
+        <div className="tag" style={{ marginBottom: 10 }}>הקו המקווקו הוא היעד</div>
+        <div style={{ display: "flex", gap: 6, alignItems: "flex-end", height: 152, position: "relative" }}>
+          <div style={{ position: "absolute", left: 0, right: 0, borderTop: "2px dashed var(--edge2)",
+            bottom: `${(computeTargets(profile).kcal / max) * 116 + 26}px` }} />
+          {days.map(x => (
+            <div key={x.k} style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "center", gap: 5, height: "100%" }}>
+              <span className="num" style={{ fontSize: 10.5, color: "var(--muted)" }}>{x.logged ? r0(x.kcal) : "—"}</span>
+              <div className="barcol" style={{ height: `${(x.kcal / max) * 116}px`,
+                background: !x.logged ? "var(--panel2)" : x.kcal > targetOf(x) * 1.1 ? "var(--gold)" : "var(--sage)",
+                borderColor: x.logged ? "var(--ink)" : "var(--edge2)" }} />
+              <span className="tag" style={{ fontSize: 16 }}>{DAYS_HE[x.d.getDay()]}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 18, marginTop: 14, paddingTop: 12, borderTop: "2px dashed var(--edge)", flexWrap: "wrap" }}>
+          <div><div className="hand" style={{ fontSize: 28, lineHeight: 1 }}>{avg || "—"}</div><div className="tag">ממוצע יומי</div></div>
+          <div><div className="hand" style={{ fontSize: 28, lineHeight: 1 }}>{onTarget}<span style={{ fontSize: 18, color: "var(--muted)" }}>/{logged.length || 0}</span></div><div className="tag">ימים בטווח היעד</div></div>
+          <div><div className="hand" style={{ fontSize: 28, lineHeight: 1, color: "var(--sage)" }}>{totalBurn}</div><div className="tag">נשרפו ב‑{activeDays} אימונים</div></div>
